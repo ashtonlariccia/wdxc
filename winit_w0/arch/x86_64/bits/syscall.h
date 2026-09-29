@@ -1,0 +1,23 @@
+// https://blog.rchapman.org/posts/Linux_System_Call_Table_for_x86_64/
+#define SYS_read 0
+#define SYS_write 1
+#define SYS_close 3
+#define SYS_rt_sigprocmask 14
+#define SYS_nanosleep 35
+#define SYS_getpid 39
+#define SYS_getuid 102
+#define SYS_fork 57
+#define SYS_execve 59
+#define SYS_wait4 61
+#define SYS_kill 62
+#define SYS_fcntl 72
+#define SYS_umask 95
+#define SYS_setsid 112
+#define SYS_sync 162
+#define SYS_mount 165
+#define SYS_reboot 169
+#define SYS_sethostname 170
+#define SYS_exit_group 231
+#define SYS_openat 257
+#define SYS_signalfd4 289
+#define SYS_dup3 292
