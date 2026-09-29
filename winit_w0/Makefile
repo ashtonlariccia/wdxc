@@ -9,13 +9,21 @@ CPPFLAGS := -Iinclude -Iarch/$(ARCH) \
 CFLAGS   := -std=c11 -O2 -Wall -Wextra \
             -ffreestanding -nostdinc -fno-builtin \
             -fno-stack-protector -fno-pie \
-			-fno-tree-loop-distribute-patterns
+			-fno-tree-loop-distribute-patterns \
+			-MMD -MP
 
-SRCS  := $(wildcard src/*/*.c)
-OBJS  := $(SRCS:%.c=$(BUILD)/obj/%.o)
-LIB   := $(BUILD)/lib/libwdxc.a
-CRT1  := $(BUILD)/lib/crt1.o
-TESTS := $(patsubst tests/%.c,$(BUILD)/tests/%,$(wildcard tests/*.c))
+SRCS      := $(wildcard src/*/*.c)
+OBJS      := $(SRCS:%.c=$(BUILD)/obj/%.o)
+LIB       := $(BUILD)/lib/libwdxc.a
+CRT1      := $(BUILD)/lib/crt1.o
+TESTS     := $(patsubst tests/%.c,$(BUILD)/tests/%,$(wildcard tests/*.c))
+TEST_OBJS := $(patsubst tests/%.c,$(BUILD)/obj/tests/%.o,$(wildcard tests/*.c))
+
+# tests/mount.c mounts and calls sethostname(); it refuses to touch anything
+# unless it detects a genuine unprivileged user namespace, but it still only
+# belongs in `make test-ns` under `unshare -rmu`, never the default suite.
+NS_TESTS  := $(BUILD)/tests/mount
+RUN_TESTS := $(filter-out $(NS_TESTS),$(TESTS))
 
 all: $(LIB) $(CRT1) $(TESTS)
 
@@ -37,10 +45,16 @@ $(BUILD)/tests/%: $(BUILD)/obj/tests/%.o $(LIB) $(CRT1)
 	$(CC) -static -no-pie -nostdlib $(CRT1) $< $(LIB) -o $@
 
 test: $(TESTS)
-	@for t in $(TESTS); do echo "== $$t"; $$t || exit 1; done
+	@for t in $(RUN_TESTS); do echo "== $$t"; $$t || exit 1; done
+
+test-ns: $(BUILD)/tests/mount
+	@echo "== $(BUILD)/tests/mount (unshare -rmu)"
+	@unshare -rmu $(BUILD)/tests/mount
 
 clean:
 	rm -rf $(BUILD)
 
-.PHONY: all test clean
+.PHONY: all test test-ns clean
 .SECONDARY:
+
+-include $(OBJS:.o=.d) $(TEST_OBJS:.o=.d)

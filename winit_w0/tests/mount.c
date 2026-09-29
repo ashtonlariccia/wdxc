@@ -8,6 +8,38 @@ static void msg(const char *s) {
     write(1, s, strlen(s));
 }
 
+/* /proc/self/uid_map for the initial (real) user namespace is always the
+   full identity map "0 0 4294967295": every uid maps to itself. Any
+   namespace created by `unshare -r` (fake root) instead maps a single id,
+   e.g. "0 1000 1". getuid() == 0 is true in both cases, so it alone can't
+   tell real root from fake root -- this can. If the file can't be read or
+   doesn't parse, fail closed (treat it as real root). */
+static int uid_map_is_identity(void) {
+    int fd = open("/proc/self/uid_map", O_RDONLY);
+    if (fd < 0) return 1;
+
+    char buf[64];
+    memset(buf, 0, sizeof buf);
+    ssize_t n = read(fd, buf, sizeof(buf) - 1);
+    close(fd);
+    if (n <= 0) return 1;
+
+    const char *p = buf;
+    unsigned long vals[3];
+    for (int i = 0; i < 3; i++) {
+        while (*p == ' ' || *p == '\t') p++;
+        if (*p < '0' || *p > '9') return 1;
+        unsigned long v = 0;
+        while (*p >= '0' && *p <= '9') {
+            v = v * 10 + (unsigned long)(*p - '0');
+            p++;
+        }
+        vals[i] = v;
+    }
+
+    return vals[0] == 0 && vals[1] == 0 && vals[2] == 4294967295UL;
+}
+
 /* Run only under `unshare -rmu`: getuid() == 0 there (mapped fake root in a
    private user namespace), with private mount and UTS namespaces so none of
    this touches the host. */
@@ -64,6 +96,11 @@ static int run_outside_namespace(void) {
 
 int main(void) {
     if (getuid() == 0) {
+        if (uid_map_is_identity()) {
+            msg("refusing: uid 0 with an identity uid_map means real root, "
+                "not a namespace -- not touching mount or hostname\n");
+            return 14;
+        }
         return run_inside_namespace();
     } else {
         return run_outside_namespace();

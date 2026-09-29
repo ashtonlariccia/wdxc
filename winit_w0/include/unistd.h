@@ -24,4 +24,6 @@ void sync(void);
 int sethostname(const char *name, size_t len);
 unsigned sleep(unsigned seconds);
 
+extern char **environ;
+
 #endif

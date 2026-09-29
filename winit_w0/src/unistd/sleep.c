@@ -5,7 +5,7 @@ unsigned sleep(unsigned seconds) {
     struct timespec ts = {seconds, 0};
     int r = nanosleep(&ts, &ts);
     if (r != 0) {
-        return ts.tv_sec;
+        return ts.tv_sec + (ts.tv_nsec > 0);
     } else {
         return 0;
     }

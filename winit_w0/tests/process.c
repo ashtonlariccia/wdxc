@@ -8,19 +8,30 @@ static void msg(const char *s) {
     write(1, s, strlen(s));
 }
 
-int main(void) {
+/* Re-exec mode: when invoked as "<self> <digit>", just exit with that
+   digit as the status. This gives the execve() checks below a target that
+   always exists, instead of depending on /bin/true and /bin/false being at
+   some particular path (they aren't, in wdxc's own initramfs). */
+static void run_as_reexec_helper(const char *code) {
+    _exit(code[0] - '0');
+}
+
+int main(int argc, char **argv, char **envp) {
+    if (argc == 2) {
+        run_as_reexec_helper(argv[1]);
+    }
+
     pid_t pid = getpid();
     if (pid <= 0) return 1;
 
-    char *const true_argv[]  = { "/run/current-system/sw/bin/true", 0 };
-    char *const false_argv[] = { "/run/current-system/sw/bin/false", 0 };
-    char *const envp[] = { 0 };
+    char *const exit1_argv[] = { argv[0], "1", 0 };
+    char *const exit0_argv[] = { argv[0], "0", 0 };
 
-    /* fork + execve(false) + waitpid: exit status 1 */
+    /* fork + execve(self "1") + waitpid: exit status 1 */
     pid_t c1 = fork();
     if (c1 < 0) return 2;
     if (c1 == 0) {
-        execve(false_argv[0], false_argv, envp);
+        execve(argv[0], exit1_argv, envp);
         _exit(126);
     }
     int st1;
@@ -28,11 +39,11 @@ int main(void) {
     if (!WIFEXITED(st1)) return 4;
     if (WEXITSTATUS(st1) != 1) return 5;
 
-    /* fork + execve(true) + waitpid: exit status 0 */
+    /* fork + execve(self "0") + waitpid: exit status 0 */
     pid_t c2 = fork();
     if (c2 < 0) return 6;
     if (c2 == 0) {
-        execve(true_argv[0], true_argv, envp);
+        execve(argv[0], exit0_argv, envp);
         _exit(126);
     }
     int st2;
@@ -92,7 +103,6 @@ int main(void) {
     if (wr != 0) return 24;
     if (waitpid(c6, &st6, 0) != c6) return 25; /* reap it so it isn't left a zombie */
 
-    /* setsid in a forked child succeeds */
     /* setsid in a forked child succeeds; a second setsid() in the same
        process (now a session/group leader) fails with EPERM. Doing both
        calls in one freshly forked child makes this deterministic
