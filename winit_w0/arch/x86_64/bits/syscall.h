@@ -19,5 +19,6 @@
 #define SYS_sethostname 170
 #define SYS_exit_group 231
 #define SYS_openat 257
+#define SYS_mkdirat 258
 #define SYS_signalfd4 289
 #define SYS_dup3 292

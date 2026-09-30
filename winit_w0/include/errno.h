@@ -9,6 +9,7 @@ int *__errno_location(void);
 #define EINTR 4
 #define EIO 5
 #define EBADF 9
+#define EBUSY 16
 #define ENODEV 19
 #define EAGAIN 11
 #define ENOMEM 12
